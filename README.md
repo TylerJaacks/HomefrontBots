@@ -8,8 +8,8 @@ built by the C++ version load as they are.
 ## Build and install
 
 ```
-HomefrontSDK\Build.ps1 -Install    build the SDK and its mods, install into server\Binaries (stop the server first)
-python tools\build_navs.py         generate the navigation graph of every map (see Navigation)
+HomefrontSDK\Build.ps1 -Install    build the SDK and its mods, install into Homefront Dedicated Server\Binaries (stop the server first)
+python HomefrontBots\build_navs.py  generate the navigation graph of every map (see Navigation)
 ```
 
 In the server: `HomefrontSDK\Mods\HomefrontBots\HomefrontBots.dll`, log `HomefrontBots.log` and graphs
@@ -36,7 +36,7 @@ one and type `!sdk reload HomefrontBots` (the bots of the old copy are removed).
 | `dummy [n]` | the developers' dummy spawner (below) |
 
 Commands are kept out of chat and answered with a chat line to the sender. They also work from a tool, without a
-player: `python tools\hfbridge.py command "!bots add 4"` (bots added that way copy the first player's loadout;
+player: `python HomefrontSDK\Tools\hfbridge.py command "!bots add 4"` (bots added that way copy the first player's loadout;
 with nobody on the server they spawn without weapons). `goto`, `bring` and `dummy` need a player in game.
 
 The bridge also answers `bots.list` (each bot's position, state, goal and remaining path) and `bots.nav` (the
@@ -94,7 +94,7 @@ single-player `*_Kyn` maps. So `Nav.cs` generates a graph from the level's colli
 - **Cost**: fl-farm has 292k nodes and 2.2M links from 2.5M traces in about 12 s of trace time, spread over about a
   minute at 8 ms per tick, so the server keeps running. The cache loads in about a second. Delete a cache (or
   `!bots nav rebuild`) to regenerate.
-- `tools\build_navs.py [--rebuild] [--maps ...]` rotates the server through every map (Ground Control where the map
+- `HomefrontBots\build_navs.py [--rebuild] [--maps ...]` rotates the server through every map (Ground Control where the map
   has it, otherwise TDM) with RCON `admin NextMap` and waits for each graph. `--rebuild` deletes only the caches of
   the maps in the run.
 

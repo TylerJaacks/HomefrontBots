@@ -5,7 +5,7 @@ Deathmatch), waits on each map until the HomefrontBots mod logs its graph saved 
 moves on with the RCON command "admin NextMap". The playlist's Map= lines are replaced for the run and put
 back afterwards; the server is stopped at the end.
 
-usage: python tools/build_navs.py [--rebuild] [--maps fl-farm,FL-BigBox?GameMode=TDM] [--timeout 900]
+usage: python HomefrontBots/build_navs.py [--rebuild] [--maps fl-farm,FL-BigBox?GameMode=TDM] [--timeout 900]
   --rebuild   delete the cached graphs of the maps in the run first, so they are generated again
   --maps      comma-separated playlist entries instead of all maps (GameMode defaults to FL)
 The server must not be running.
@@ -13,18 +13,28 @@ The server must not be running.
 import argparse
 import os
 import re
+import socket
 import subprocess
 import sys
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN = os.path.join(ROOT, "server", "Binaries")
-PLAYLIST = os.path.join(ROOT, "server", "GCGame", "Config", "DedicatedProfile_DefaultProfile", "DedicatedPlaylist")
+BIN = os.path.join(ROOT, "Homefront Dedicated Server", "Binaries")
+PLAYLIST = os.path.join(ROOT, "Homefront Dedicated Server", "GCGame", "Config", "DedicatedProfile_DefaultProfile", "DedicatedPlaylist")
 MOD = os.path.join(BIN, "HomefrontSDK", "Mods", "HomefrontBots")
 LOG = os.path.join(MOD, "HomefrontBots.log")
 CACHE = os.path.join(MOD, "nav")
-LAUNCH = ["HFDedicated.exe", "SERVER", "?lan=true?maxplayers=32", "-queryport=27015", "-authport=8766",
+LAUNCH = ["HFDedicated.exe", "SERVER", "?maxplayers=32", "-queryport=27015", "-authport=8766",
           "-rconport1=27010", "-rconport2=27011", "-configsubdir=DedicatedProfile_DefaultProfile", "-ALLOWMULTIPLE"]
+
+
+def internet_address():
+    """This PC's address on the network that reaches the internet (a UDP connect sends nothing). The server must be
+    told it with -MULTIHOME: left alone it may pick a virtual adapter (VMware's host-only network here), and its Steam
+    logon, bound to that address, never gets out."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.connect(("8.8.8.8", 53))
+        return s.getsockname()[0]
 
 # Persistent map packages (GCGame\CookedPC\Maps\MP\*). The playlist offers Ground Control (FL) on these...
 FL_MAPS = ["fl-farm", "fl-lowlands", "fl-angelisland", "FL-Crossroads", "fl-culdesac", "fl-harbor", "FL-Spillway",
@@ -62,7 +72,7 @@ def restore(text):
 
 def next_map(password):
     for _ in range(5):
-        r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "hfrcon.py"), "--password", password,
+        r = subprocess.run([sys.executable, os.path.join(ROOT, "HomefrontSDK", "Tools", "hfrcon.py"), "--password", password,
                             "--wait", "3", "admin NextMap"], capture_output=True, text=True)
         if r.returncode == 0:
             return True
@@ -93,7 +103,8 @@ def main():
     password = admin_password()
     original = set_rotation(entries)
     log_start = os.path.getsize(LOG) if os.path.exists(LOG) else 0
-    server = subprocess.Popen(LAUNCH, cwd=BIN, executable=os.path.join(BIN, "HFDedicated.exe"))
+    server = subprocess.Popen(LAUNCH + ["-MULTIHOME=" + internet_address()], cwd=BIN,
+                              executable=os.path.join(BIN, "HFDedicated.exe"))
     print("server pid %d; playlist: %s" % (server.pid, ", ".join(entries)), flush=True)
 
     results = {}  # map (lower) -> summary line
