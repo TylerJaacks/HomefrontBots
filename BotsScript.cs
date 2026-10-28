@@ -93,9 +93,9 @@ public sealed class BotsScript : Script
 
     public override void OnStop()
     {
-        // The bots stay in the game without their brains; take them out so a reloaded mod starts clean.
-        if (bots.All.Count > 0 && Game.Info is GCGameBase g)
-            g.KillBots();
+        // The bots stay in the game, brainless until a reloaded copy of the mod takes them over (Bots.Adopt).
+        if (bots.All.Count > 0)
+            Log.Write($"stopping; {bots.All.Count} bot(s) stay in the game for the next load to take over");
     }
 
     public override void OnMapLoaded(GameInfo gameInfo)
@@ -108,6 +108,12 @@ public sealed class BotsScript : Script
         navPending = true;
         mapSince = Environment.TickCount64;
         settledSince = 0;
+        // A reloaded mod takes over the bots its previous copy left in. Otherwise the roster comes back on every
+        // playable map (not the intermission lobby between maps). They walk once the nav graph is ready.
+        if (bots.All.Count == 0)
+            bots.Adopt(gameInfo);
+        if (bots.Roster.Count > 0 && bots.All.Count == 0 && gameInfo is FL2GameMP && gameInfo is not FL2GameIntermission)
+            bots.Restore(gameInfo);
     }
 
     public override void OnMapUnloading(string oldMap)
@@ -144,7 +150,37 @@ public sealed class BotsScript : Script
             }
         }
         Nav.Tick(NavBudgetMs);
+        TakeRollCall();
         bots.Tick(now);
+    }
+
+    /// <summary>Every living soldier with a team (players and bots), refreshed each tick from WorldInfo.PawnList.</summary>
+    internal readonly List<(Pawn Pawn, int Team)> Soldiers = new();
+
+    void TakeRollCall()
+    {
+        Soldiers.Clear();
+        for (Pawn? p = Game.WorldInfo?.PawnList; p != null && Soldiers.Count < 256; p = p.NextPawn)
+            if (p.Alive && p.Health > 0 && p.PlayerReplicationInfo?.Team is TeamInfo t)
+                Soldiers.Add((p, (int)t.TeamIndex));
+    }
+
+    /// <summary>Team Deathmatch: no objectives, so bots hunt the other team.</summary>
+    internal bool Hunting => Game.Info is FL2GameTDM;
+
+    /// <summary>Whether nothing of the world (BSP, static meshes, terrain) is between two points.</summary>
+    internal bool ClearLine(FVector from, FVector to)
+    {
+        if (Game.World is not World world)
+            return false;
+        try
+        {
+            return !world.Trace(Game.Info, from, to, default).Hit;
+        }
+        catch (GameCrashException)
+        {
+            return false;
+        }
     }
 
     internal List<Objective_GameMode> Objectives(WorldInfo? worldInfo)
@@ -163,7 +199,9 @@ public sealed class BotsScript : Script
     /// <summary>The bots, for the editor bridge.</summary>
     internal IReadOnlyList<Bot> AllBots => bots.All;
 
-    [Command("bots", Help = "!bots add [n] [team] | list | goto [n] | bring [n] | kill | nav [rebuild] | dummy [n]")]
+    const string Usage = "add [n] [team] | list | loadouts | goto [n] | bring [n] | kill | nav [rebuild] | dummy [n] | ladder [n] [down] | die [n]";
+
+    [Command("bots", Help = "!bots " + Usage)]
     void BotsCommand(CommandContext ctx)
     {
         static int Clamp(int v, int lo, int hi) => Math.Clamp(v, lo, hi);
@@ -190,6 +228,15 @@ public sealed class BotsScript : Script
             case "dummy":
                 bots.AddDummies(ctx, Clamp(ctx.Int(1, 1), 1, 16));
                 break;
+            case "ladder":
+                bots.LadderTest(ctx, ctx.Int(1, 0), ctx.Arg(2) == "down");
+                break;
+            case "die":
+                bots.Die(ctx, ctx.Int(1, 0));
+                break;
+            case "loadouts":
+                bots.ListLoadouts(ctx);
+                break;
             case "nav":
                 if (ctx.Arg(1) == "rebuild" && Game.Info is GameInfo g)
                 {
@@ -203,7 +250,7 @@ public sealed class BotsScript : Script
                 }
                 break;
             default:
-                ctx.Reply("[bots] " + "add [n] [team] | list | goto [n] | bring [n] | kill | nav [rebuild] | dummy [n]");
+                ctx.Reply("[bots] " + Usage);
                 break;
         }
     }
