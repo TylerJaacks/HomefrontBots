@@ -5,12 +5,101 @@ fight with the game's own AI, and walk to objectives over a navigation graph the
 This is the C# port of the earlier C++ `hfbots` mod: same behaviour, and the same nav file format, so the graphs
 built by the C++ version load as they are.
 
+## Install from the releases
+
+No build needed. Stop the server, then from each project's GitHub Releases page:
+
+| Download | Put it in `Homefront Dedicated Server\Binaries\` as |
+|---|---|
+| [HomefrontModLoader](https://github.com/TylerJaacks/HomefrontModLoader/releases): `msimg32.dll` | `msimg32.dll` |
+| [HomefrontSDK](https://github.com/TylerJaacks/HomefrontSDK/releases): `HomefrontSDK-v<x>.zip` | extracted here, giving `HomefrontSDK\HomefrontSDK.dll` and its files |
+| [HomefrontBots](https://github.com/TylerJaacks/HomefrontBots/releases): `HomefrontBots.dll` | `HomefrontSDK\Mods\HomefrontBots\HomefrontBots.dll` |
+
+Take the HomefrontSDK release that the HomefrontBots release notes name: the mod must run with the SDK it was built
+against. The server machine needs the **32-bit (x86) .NET 10 runtime**. Then generate the navigation graphs (see
+Navigation) and start the server.
+
 ## Build and install
 
+HomefrontBots compiles against the [HomefrontSDK](https://github.com/TylerJaacks/HomefrontSDK) NuGet package, and
+runs in a server that [HomefrontModLoader](https://github.com/TylerJaacks/HomefrontModLoader) has started the SDK in.
+
+**Needs:** Windows, the .NET 10 SDK, Visual Studio (or its Build Tools) with the x86 C++ tools (for the loader),
+Python 3 (for `build_navs.py`), and on the server machine the **32-bit (x86) .NET 10 runtime**.
+
+### The SDK package
+
+`HomefrontBots.csproj` references the `HomefrontSDK` package, version `HomefrontSDKVersion`, from GitHub Packages
+(`https://nuget.pkg.github.com/TylerJaacks/index.json`, set in `nuget.config`). It is referenced with
+`ExcludeAssets="runtime"`: the game already has the SDK loaded, so the mod compiles against it without copying it.
+
+GitHub's feed needs a token even for public packages. Create a personal access token (classic) with
+`read:packages` and put it in `GITHUB_TOKEN` before building:
+
 ```
-HomefrontSDK\Build.ps1 -Install    build the SDK and its mods, install into Homefront Dedicated Server\Binaries (stop the server first)
-python HomefrontBots\build_navs.py  generate the navigation graph of every map (see Navigation)
+$env:GITHUB_TOKEN = '<token>'
+dotnet build HomefrontBots\HomefrontBots.slnx -c Release
 ```
+
+To work on the SDK and the bots together, build against a HomefrontSDK checkout beside this one instead (no token
+needed): `dotnet build HomefrontBots\HomefrontBots.slnx -c Release -p:UseLocalSdk=true`.
+
+**A new SDK version:** push a `v*` tag to HomefrontSDK (`git tag v0.2.0 && git push origin v0.2.0`); its workflow
+publishes the package with that version. Then raise `HomefrontSDKVersion` in `HomefrontBots.csproj`. The mod must
+run with the SDK it was built against: the SDK loads a mod whatever SDK version it references, and a binding that
+changed fails only when it's called (`MissingMethodException`).
+
+### Build and install into the server
+
+**1. Clone the repositories side by side**, next to the dedicated server. `Build.ps1` looks for
+`HomefrontModLoader`, `HomefrontBots` and `Homefront Dedicated Server` beside `HomefrontSDK`:
+
+```
+<folder>\
+  Homefront Dedicated Server\     the server (Binaries\HFDedicated.exe)
+  HomefrontModLoader\             git clone https://github.com/TylerJaacks/HomefrontModLoader
+  HomefrontSDK\                   git clone https://github.com/TylerJaacks/HomefrontSDK
+  HomefrontBots\                  git clone https://github.com/TylerJaacks/HomefrontBots
+```
+
+**2. Build and install** (stop the server first). Check out the HomefrontSDK tag matching `HomefrontSDKVersion`
+(or use `-p:UseLocalSdk=true`), so the installed SDK is the one the mod was built against:
+
+```
+dotnet build HomefrontBots\HomefrontBots.slnx -c Release   build HomefrontBots
+HomefrontSDK\Build.ps1 -Install                            build the loader, the SDK and HelloMod, install them with HomefrontBots
+python HomefrontBots\build_navs.py                         generate the navigation graph of every map (see Navigation)
+```
+
+`Build.ps1 -Install` copies `HomefrontBots\bin\Release\net10.0\HomefrontBots.dll` (and `.pdb`) if it has been built,
+so build HomefrontBots first. For a Debug build, pass `-c Debug` to both. Installed into
+`Homefront Dedicated Server\Binaries`:
+
+```
+msimg32.dll                                       HomefrontModLoader
+HomefrontSDK\HomefrontSDK.dll                     HomefrontSDK (+ .runtimeconfig.json, .deps.json, .pdb)
+HomefrontSDK\Mods\HomefrontBots\HomefrontBots.dll this mod (+ .pdb)
+```
+
+Without `Build.ps1`: build the loader with `HomefrontModLoader\build.cmd` and copy the files above by hand.
+
+**3. Start the server** as in the SDK README, with `-MULTIHOME=<this PC's address>`, and type
+`!bots add 4` in chat.
+
+### CI
+
+Each repository has a GitHub Actions workflow (`.github/workflows/build.yml`) that builds it on every push and pull
+request to `main` and uploads the result as an artifact. Pushing a `v*` tag (`git tag v0.6.0 && git push origin
+v0.6.0`) also builds with that version and makes a GitHub Release:
+
+| Repository | On a tag |
+|---|---|
+| HomefrontSDK | publishes the `HomefrontSDK` package to GitHub Packages; releases `HomefrontSDK-<tag>.zip` and the `.nupkg` |
+| HomefrontBots | restores that package (with the workflow's `GITHUB_TOKEN`); releases `HomefrontBots.dll` and `.pdb`, the notes naming the SDK release it needs |
+| HomefrontModLoader | releases `msimg32.dll`. It doesn't use the SDK to build: it loads `HomefrontSDK.dll` from the server at run time |
+
+To release a new SDK with the bots: tag HomefrontSDK, wait for its workflow, raise `HomefrontSDKVersion` in
+`HomefrontBots.csproj`, push, then tag HomefrontBots.
 
 In the server: `HomefrontSDK\Mods\HomefrontBots\HomefrontBots.dll`, log `HomefrontBots.log` and graphs
 `nav\<map>.nav` in the same folder. A rebuilt DLL can be swapped in while the server runs: copy it over the old

@@ -1,0 +1,50 @@
+# Builds HomefrontBots against the HomefrontSDK package from GitHub Packages (HomefrontSDKVersion in
+# HomefrontBots.csproj). A v* tag (v0.6.0) builds with that version and makes a GitHub Release with HomefrontBots.dll
+# and .pdb, its notes naming the HomefrontSDK release it needs.
+name: Build
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # read by nuget.config for the GitHub Packages feed
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+    - name: Version from tag
+      if: github.ref_type == 'tag'
+      run: "\"VERSION_ARG=-p:Version=$($env:GITHUB_REF_NAME.TrimStart('v'))\" >> $env:GITHUB_ENV"
+    - name: Build
+      run: dotnet build HomefrontBots.slnx -c Release -nologo $env:VERSION_ARG
+    - name: Upload
+      uses: actions/upload-artifact@v4
+      with:
+        name: HomefrontBots
+        path: |
+          bin/Release/net10.0/HomefrontBots.dll
+          bin/Release/net10.0/HomefrontBots.pdb
+    - name: GitHub Release
+      if: github.ref_type == 'tag'
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        $sdk = dotnet msbuild HomefrontBots.csproj -getProperty:HomefrontSDKVersion
+        $notes = "Needs [HomefrontSDK v$sdk](https://github.com/${{ github.repository_owner }}/HomefrontSDK/releases/tag/v$sdk) and HomefrontModLoader. " +
+                 "Install as ``Homefront Dedicated Server\Binaries\HomefrontSDK\Mods\HomefrontBots\HomefrontBots.dll``."
+        gh release create $env:GITHUB_REF_NAME bin/Release/net10.0/HomefrontBots.dll bin/Release/net10.0/HomefrontBots.pdb `
+          --title "HomefrontBots $env:GITHUB_REF_NAME" --notes $notes --generate-notes

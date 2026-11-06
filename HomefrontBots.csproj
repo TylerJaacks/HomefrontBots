@@ -11,8 +11,17 @@
     <Version>0.5.0</Version>
   </PropertyGroup>
 
-  <ItemGroup>
-    <!-- The game already has the SDK loaded: reference it, don't copy it. -->
+  <!-- The SDK comes from GitHub Packages (see nuget.config). -p:UseLocalSdk=true builds against ..\HomefrontSDK instead,
+       to work on both at once. Either way the game already has the SDK loaded: reference it, don't copy it. -->
+  <PropertyGroup>
+    <HomefrontSDKVersion>0.1.0</HomefrontSDKVersion>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(UseLocalSdk)' != 'true'">
+    <PackageReference Include="HomefrontSDK" Version="$(HomefrontSDKVersion)" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(UseLocalSdk)' == 'true'">
     <ProjectReference Include="..\HomefrontSDK\SDK\HomefrontSDK.csproj" Private="false" />
   </ItemGroup>
 
