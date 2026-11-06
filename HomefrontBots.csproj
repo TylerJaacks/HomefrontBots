@@ -11,10 +11,11 @@
     <Version>0.5.0</Version>
   </PropertyGroup>
 
-  <!-- The SDK comes from GitHub Packages (see nuget.config). -p:UseLocalSdk=true builds against ..\HomefrontSDK instead,
-       to work on both at once. Either way the game already has the SDK loaded: reference it, don't copy it. -->
-  <!-- * = the latest stable HomefrontSDK release; pin one with -p:HomefrontSDKVersion=1.0.0. -->
+  <!-- The SDK: the HomefrontSDK checkout beside this one when there is one, else (CI) the latest stable package from
+       GitHub Packages (see nuget.config and RELEASING.md). -p:UseLocalSdk=false forces the package,
+       -p:HomefrontSDKVersion=1.0.0 pins it. Either way the game already has the SDK loaded: reference it, don't copy it. -->
   <PropertyGroup>
+    <UseLocalSdk Condition="'$(UseLocalSdk)' == '' and Exists('..\HomefrontSDK\SDK\HomefrontSDK.csproj')">true</UseLocalSdk>
     <HomefrontSDKVersion Condition="'$(HomefrontSDKVersion)' == ''">*</HomefrontSDKVersion>
   </PropertyGroup>
 
