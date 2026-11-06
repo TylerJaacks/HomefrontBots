@@ -44,6 +44,9 @@ internal sealed class Brain
 
     public string Goal { get; private set; } = "";
 
+    /// <summary>The bot's state for the behaviour learned from real players (Imitation).</summary>
+    internal readonly Imitation.State Imitated = new();
+
     /// <summary>Forgets the path (death, teleport).</summary>
     public void Reset()
     {
@@ -53,6 +56,7 @@ internal sealed class Brain
         _stuck = 0;
         _climbSince = 0;
         _quarry = null;
+        Imitated.Forget();
     }
 
     /// <summary>Walks a given path (for tests such as "!bots ladder").</summary>
@@ -83,7 +87,14 @@ internal sealed class Brain
         // nearby spots so the bot is harder to hit. Not halfway up a ladder, though.
         if (c.StateName == "Attacking" && pawn.Physics != EPhysics.PHYS_Ladder)
         {
-            Fight(nav, c, pawn, now, mod.Random);
+            // Moving the way real players move in the same spot (the policy), else strafing between nearby spots.
+            if (!_fought)
+                Imitated.Forget();   // a new fight: nothing left from the last one
+
+            if (mod.Imitation.CombatActive && mod.Imitation.Fight(mod, nav, Imitated, c, pawn, team, now))
+                _fought = true;
+            else
+                Fight(nav, c, pawn, now, mod.Random);
 
             return false;
         }
@@ -161,7 +172,10 @@ internal sealed class Brain
         // Look where it's going, or at an enemy in sight (the AI then notices it and fights).
         var seen = _seen is { Alive: true } s ? s : null;
 
-        Steer(c, pawn, target, 1f, look: seen == null);
+        // Crouching or sprinting where real players would (the policy; 1 without one).
+        var speed = pawn.Physics == EPhysics.PHYS_Walking ? mod.Imitation.Travel(mod, Imitated, c, pawn, team, target, now) : 1f;
+
+        Steer(c, pawn, target, speed, look: seen == null);
 
         if (seen != null)
             c.SetFocalPoint(Eye(seen), false);
@@ -203,7 +217,7 @@ internal sealed class Brain
 
     // Accelerate toward `target`, and set the walking velocity outright so turns are tight. With `look`, face where
     // it's going (the Searching state's view sweep would otherwise turn the bot around); in a fight the AI aims.
-    private static void Steer(Controller c, Pawn pawn, FVector target, float speed, bool look)
+    internal static void Steer(Controller c, Pawn pawn, FVector target, float speed, bool look)
     {
         ref var loc = ref pawn.Location;
 
@@ -445,7 +459,12 @@ internal sealed class Brain
         // Ground Control: take or hold an objective. Team Deathmatch (or no objective active): hunt the other team.
         if (!mod.Hunting && PickObjective(mod, worldInfo, team, at, out var objective, out var what))
         {
-            to = nav.RandomNear(objective, ObjectiveArea);
+            // Where real players hold this objective and win fights from (the heat map), else anywhere near it.
+            to = mod.Imitation.PickSpot(nav, objective, ObjectiveArea, hold: true, mod.Random);
+
+            if (to < 0)
+                to = nav.RandomNear(objective, ObjectiveArea);
+
             _atObjective = to >= 0;
             Goal = what;
         }
@@ -467,7 +486,11 @@ internal sealed class Brain
 
         if (to < 0)
         {
-            to = nav.RandomNear(at, 3000f);
+            to = mod.Imitation.PickSpot(nav, at, 3000f, hold: false, mod.Random);
+
+            if (to < 0)
+                to = nav.RandomNear(at, 3000f);
+
             Goal = "roam";
         }
 

@@ -15,6 +15,9 @@ sealed class Nav
 {
     // Grid spacing, about a metre (1 unit ~ 2 cm): fine enough that a doorway gets a grid line through it.
     const float Spacing = 48f;
+
+    /// <summary>The grid the graph is built on (HomefrontImitation's heat files use the same cells).</summary>
+    public const float GridSpacing = Spacing;
     const float MaxDrop = 250f;    // highest ledge a bot drops off (a one-way link)
     const float Margin = 4000f;    // with no combat volume: explore this far beyond spawn points/objectives
     const int MaxNodes = 700000;
@@ -351,6 +354,8 @@ sealed class Nav
     /// <summary>Forgets the graph (map change).</summary>
     public void Reset()
     {
+        ++Generation;
+        Bias = null;
         phase = Phase.Idle;
         floor.Clear();
         adj.Clear();
@@ -529,6 +534,33 @@ sealed class Nav
         return best;
     }
 
+    /// <summary>The node in grid cell (<paramref name="cx"/>, <paramref name="cy"/>) whose floor is nearest
+    /// <paramref name="floorZ"/>, within <paramref name="maxDz"/>; -1 if none.</summary>
+    public int NodeInCell(int cx, int cy, float floorZ, float maxDz)
+    {
+        if (!Ready || !cells.TryGetValue(CellKey(cx, cy), out var list))
+            return -1;
+        int best = -1;
+        float bestDz = maxDz;
+        foreach (int n in list)
+        {
+            float dz = MathF.Abs(floor[n].Z - floorZ);
+            if (dz <= bestDz)
+            {
+                best = n;
+                bestDz = dz;
+            }
+        }
+        return best;
+    }
+
+    /// <summary>Extra path cost per node, as a fraction of the distance walked into it (HomefrontImitation's routes:
+    /// higher on floor humans don't use). Null: plain distances. Never negative, so A* stays exact.</summary>
+    public float[]? Bias;
+
+    /// <summary>Changes whenever the graph is dropped (map change, rebuild): per-node data built for it is stale.</summary>
+    public int Generation { get; private set; }
+
     /// <summary>A random node within <paramref name="radius"/> of a point (any node for radius &lt;= 0); -1 if none.</summary>
     public int RandomNear(FVector at, float radius)
     {
@@ -573,6 +605,7 @@ sealed class Nav
         parent[from] = -1;
         stamp[from] = search;
         open.Enqueue(from, Dist(floor[from], goal));
+        float[]? bias = Bias is { } b && b.Length == n ? b : null;
         while (open.TryDequeue(out int u, out float f))
         {
             if (u == to)
@@ -582,7 +615,8 @@ sealed class Nav
             for (int k = linkStart[u]; k < linkStart[u + 1]; ++k)
             {
                 int v = (int)links[k];
-                Relax(u, v, cost[u] + Dist(floor[u], floor[v]));
+                float step = Dist(floor[u], floor[v]);
+                Relax(u, v, cost[u] + (bias == null ? step : step * (1f + bias[v])));
             }
             if (ladderLinks.TryGetValue(u, out var climbs))
                 foreach (var (v, _) in climbs)

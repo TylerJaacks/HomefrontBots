@@ -90,6 +90,7 @@ One graph per map serves both Ground Control and Team Deathmatch.
 | `bring [n]` | teleport `Bot n` (default: all) in front of you |
 | `kill` | remove every bot |
 | `nav` / `nav rebuild` | the graph's status / build it again for this map |
+| `imitation [...]` | behaviour learned from real players: status, `on`/`off`, `reload`, `combat\|stance\|routes\|spots on\|off`, `temp <t>` (below) |
 | `dummy [n]` | spawn n stationary dummies next to you with your loadout (the developers' test spawner; not players) |
 | `ladder [n] [down]` | test: puts the first bot at the foot (or top) of the map's ladder n and sends it up (or down); `!bots ladder` says how many |
 | `die [n]` | test: kills bot n (default: the first with a body) |
@@ -99,6 +100,22 @@ Commands are kept out of chat and answered with a chat line to the sender. They 
 player: `python HomefrontSDK\Tools\hfbridge.py command "!bots add 4"`. `goto`, `bring` and `dummy` need a player in
 game. Tools can also ask the bridge for `bots.list` (each bot's position, state, goal and remaining path) and
 `bots.nav` (the graph's nodes; links too with `"links": true`).
+
+## Learning from real players
+
+With [HomefrontImitation](https://github.com/TylerJaacks/HomefrontImitation) recording real players and its trainer
+writing `Mods\HomefrontBots\imitation\policy.json` and `<map>.heat`, bots:
+
+- **fight** like the humans did in the same spot: each 0.1 s the policy picks a move relative to the enemy (or
+  holding still), never into a wall, walked along a straight line of the nav graph (`combat`);
+- crouch, sprint and jump when and as often as humans do (`stance`);
+- prefer the floor humans walk: A* adds up to `routeBias` (0.6) x distance on floor nobody used (`routes`);
+- hold objectives from the spots humans hold and win fights from (`spots`).
+
+Each part falls back to the behaviour above without its file. `!bots imitation` shows what's in use; settings are in
+`imitation\imitation.json`. The shared code in `Imitation\Features.cs`, `Policy.cs` and `Senses.cs` is a copy of
+HomefrontImitation's `Shared\` and must stay identical (its `tests/e2e.py` checks). How it works:
+[RESEARCH.md](RESEARCH.md#learned-behaviour).
 
 ## Known limitations
 

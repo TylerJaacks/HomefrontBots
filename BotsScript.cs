@@ -18,6 +18,7 @@ public sealed class BotsScript : Script
     const double NavBudgetMs = 8.0;  // graph building per tick
 
     internal Nav Nav = null!;
+    internal Imitation Imitation = null!;
     internal readonly Random Random = new();
     Bots bots = null!;
 
@@ -35,6 +36,8 @@ public sealed class BotsScript : Script
         bots = new Bots(this);
         Bridge.Handle("bots.list", _ => BotsForEditor());
         Bridge.Handle("bots.nav", r => NavForEditor(r["links"]?.GetValue<bool>() ?? false));
+        Imitation = new Imitation(Log, Directory);
+        Bridge.Handle("bots.imitation", _ => Imitation.ToJson());
         Log.Write("HomefrontBots started");
     }
 
@@ -104,6 +107,7 @@ public sealed class BotsScript : Script
         map = Game.MapName;
         Log.Write($"map: {map}");
         Nav.Reset();
+        Imitation.OnMap(map, Nav);
         objectives = null;
         navPending = true;
         mapSince = Environment.TickCount64;
@@ -120,6 +124,7 @@ public sealed class BotsScript : Script
     {
         bots.Clear();
         Nav.Reset();
+        Imitation.OnMap("", Nav);
         navPending = false;
         game = null;
         objectives = null;
@@ -150,6 +155,7 @@ public sealed class BotsScript : Script
             }
         }
         Nav.Tick(NavBudgetMs);
+        Imitation.Tick(Nav);
         TakeRollCall();
         bots.Tick(now);
     }
@@ -199,7 +205,52 @@ public sealed class BotsScript : Script
     /// <summary>The bots, for the editor bridge.</summary>
     internal IReadOnlyList<Bot> AllBots => bots.All;
 
-    const string Usage = "add [n] [team] | list | loadouts | goto [n] | bring [n] | kill | nav [rebuild] | dummy [n] | ladder [n] [down] | die [n]";
+    const string Usage = "add [n] [team] | list | loadouts | goto [n] | bring [n] | kill | nav [rebuild] | imitation [...] | dummy [n] | ladder [n] [down] | die [n]";
+
+    const string ImitationUsage = "imitation [on | off | reload | combat|stance|routes|spots on|off | temp <0.1-2>]";
+
+    // "!bots imitation ...": the behaviour learned from real players (HomefrontImitation).
+    void ImitationCommand(CommandContext ctx)
+    {
+        var cfg = Imitation.Cfg;
+        string what = ctx.Arg(1, "status"), value = ctx.Arg(2);
+        bool admin = ctx.Player == null || ctx.Player.PlayerReplicationInfo?.bAdmin == true;
+        if (what != "status" && !admin)
+        {
+            ctx.Reply("[bots] only admins (or the bridge) can change imitation");
+            return;
+        }
+        switch (what)
+        {
+            case "status":
+                break;
+            case "on" or "off":
+                cfg.Enabled = what == "on";
+                break;
+            case "reload":
+                Imitation.Reload(Nav);
+                break;
+            case "combat" or "stance" or "routes" or "spots" when value is "on" or "off":
+                bool on = value == "on";
+                switch (what)
+                {
+                    case "combat": cfg.Combat = on; break;
+                    case "stance": cfg.Stance = on; break;
+                    case "routes": cfg.Routes = on; break;
+                    default: cfg.Spots = on; break;
+                }
+                break;
+            case "temp" when float.TryParse(value, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out float t):
+                cfg.Temperature = Math.Clamp(t, 0.1f, 2f);
+                break;
+            default:
+                ctx.Reply("[bots] " + ImitationUsage);
+                return;
+        }
+        if (what != "status" && what != "reload")
+            Imitation.Apply(Nav);
+        ctx.Reply("[bots] imitation " + Imitation.Status);
+    }
 
     [Command("bots", Help = "!bots " + Usage)]
     void BotsCommand(CommandContext ctx)
@@ -236,6 +287,9 @@ public sealed class BotsScript : Script
                 break;
             case "loadouts":
                 bots.ListLoadouts(ctx);
+                break;
+            case "imitation":
+                ImitationCommand(ctx);
                 break;
             case "nav":
                 if (ctx.Arg(1) == "rebuild" && Game.Info is GameInfo g)

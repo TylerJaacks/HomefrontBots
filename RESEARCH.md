@@ -15,6 +15,8 @@ graphs built by the C++ version load as they are.
 | `Brain.cs` | Goals and path following |
 | `Nav.cs` | Navigation graph: generation, cache, nearest node, A* |
 | `build_navs.py` | Drives the server through every map to build the graphs |
+| `Imitation/Imitation.cs` | Behaviour learned from real players: loads the policy and heat, fight moves, stance, spots |
+| `Imitation/Features.cs`, `Policy.cs`, `Senses.cs` | Copies of HomefrontImitation's `Shared/`: the observation, the MLP, reading the game |
 
 On `!sdk reload HomefrontBots` the bots stay in the game and the new copy takes them over: removing them on unload
 with `GCGameBase.KillBots` once crashed the server. `!bots kill` uses `GCGameBase.KillBots`.
@@ -153,6 +155,30 @@ count (1 byte) and that many node indices (uint32).
   raw grid route (a straight line can clip a corner the grid goes around); stuck again, a new goal.
 
 Known gaps: no cover (bots strafe in the open), and ladder climbing is still untested in game.
+
+## Learned behaviour
+
+From HomefrontImitation's recordings of real players (`Mods\HomefrontBots\imitation\`):
+
+- **Policy** (`policy.json`): an MLP from the observation in `Features.cs` (egocentric, in a frame toward the enemy
+  in sight: distances, velocities, facing, health, counts, eight free-space box sweeps at knee height, last move,
+  stance, weapon class) to a movement class (still, or one of 8 directions at 45 degrees in the frame) and the chances
+  of crouching, sprinting and jumping next. The bot builds the same observation the recorder built for the humans,
+  with the same code (`Senses.Observe`), its AI's `Enemy` first when it's in sight.
+- **Fights** (`Imitation.Fight`, instead of `Brain.Fight` while `Attacking`): a decision every 0.1 s. The movement is
+  sampled from the policy (temperature 0.8) without the directions whose probe hit something within 140 units. The
+  bot then needs a node 260/170/100 units that way, in a `WalkableLine` from its own; a direction without one is
+  dropped and another sampled. No direct movement off the graph, so a learned move can't walk off a ledge. The AI
+  keeps aiming and firing.
+- **Stance**: crouch and sprint with hysteresis (on above 0.65, off below 0.35, held 0.8 s at least) through
+  `Pawn.ShouldCrouch` and `Pawn.SetSprinting`; steering scales the walking speed by `CrouchedPct`/`SprintingPct`
+  (it sets the velocity outright). No sprinting in fights. A jump at most every 1.5 s.
+- **Heat** (`<map>.heat`, the nav grid's cells): mapped onto nodes by cell and nearest floor height, spread along
+  links (3-4 passes of half self, half neighbours: never through walls), normalised on a log scale against the 99th
+  percentile. Route cost: `step x (1 + routeBias x (1 - traffic))`, never below the distance, so A* stays exact.
+  Spots: 16 candidates near the objective drawn by `0.1 + 4 x score^2`, score = 0.6 traffic + 0.4 fight time +
+  0.5 (kills - deaths) / (kills + deaths + 3).
+- A rebuilt graph (`Nav.Generation`) gets the heat mapped again.
 
 ## Dummy bots
 
