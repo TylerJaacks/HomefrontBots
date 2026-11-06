@@ -1,5 +1,4 @@
-# Builds HomefrontBots against the HomefrontSDK package from GitHub Packages (HomefrontSDKVersion in
-# HomefrontBots.csproj). A v* tag (v0.6.0) builds with that version and makes a GitHub Release with HomefrontBots.dll
+# Builds HomefrontBots against the latest HomefrontSDK package from GitHub Packages. A v* tag (v0.6.0) builds with that version and makes a GitHub Release with HomefrontBots.dll
 # and .pdb, its notes naming the HomefrontSDK release it needs.
 name: Build
 
@@ -43,7 +42,8 @@ jobs:
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        $sdk = dotnet msbuild HomefrontBots.csproj -getProperty:HomefrontSDKVersion
+        $sdk = (dotnet list HomefrontBots.csproj package --format json | ConvertFrom-Json).projects[0].frameworks[0].topLevelPackages |
+          Where-Object id -eq HomefrontSDK | ForEach-Object resolvedVersion
         $notes = "Needs [HomefrontSDK v$sdk](https://github.com/${{ github.repository_owner }}/HomefrontSDK/releases/tag/v$sdk) and HomefrontModLoader. " +
                  "Install as ``Homefront Dedicated Server\Binaries\HomefrontSDK\Mods\HomefrontBots\HomefrontBots.dll``."
         gh release create $env:GITHUB_REF_NAME bin/Release/net10.0/HomefrontBots.dll bin/Release/net10.0/HomefrontBots.pdb `

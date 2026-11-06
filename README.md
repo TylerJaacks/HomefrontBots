@@ -29,8 +29,9 @@ Python 3 (for `build_navs.py`), and on the server machine the **32-bit (x86) .NE
 
 ### The SDK package
 
-`HomefrontBots.csproj` references the `HomefrontSDK` package, version `HomefrontSDKVersion`, from GitHub Packages
-(`https://nuget.pkg.github.com/TylerJaacks/index.json`, set in `nuget.config`). It is referenced with
+`HomefrontBots.csproj` references the latest stable `HomefrontSDK` package (version `*`) from GitHub Packages
+(`https://nuget.pkg.github.com/TylerJaacks/index.json`, set in `nuget.config`). Pin a version with
+`-p:HomefrontSDKVersion=1.0.0`. It is referenced with
 `ExcludeAssets="runtime"`: the game already has the SDK loaded, so the mod compiles against it without copying it.
 
 GitHub's feed needs a token even for public packages. Create a personal access token (classic) with
@@ -45,8 +46,9 @@ To work on the SDK and the bots together, build against a HomefrontSDK checkout 
 needed): `dotnet build HomefrontBots\HomefrontBots.slnx -c Release -p:UseLocalSdk=true`.
 
 **A new SDK version:** push a `v*` tag to HomefrontSDK (`git tag v0.2.0 && git push origin v0.2.0`); its workflow
-publishes the package with that version. Then raise `HomefrontSDKVersion` in `HomefrontBots.csproj`. The mod must
-run with the SDK it was built against: the SDK loads a mod whatever SDK version it references, and a binding that
+publishes the package with that version, and the next HomefrontBots build picks it up (locally, restore with
+`dotnet restore --force-evaluate` to look again). `dotnet list HomefrontBots\HomefrontBots.csproj package` shows the
+version a build used. The mod must run with the SDK it was built against: the SDK loads a mod whatever SDK version it references, and a binding that
 changed fails only when it's called (`MissingMethodException`).
 
 ### Build and install into the server
@@ -62,7 +64,7 @@ changed fails only when it's called (`MissingMethodException`).
   HomefrontBots\                  git clone https://github.com/TylerJaacks/HomefrontBots
 ```
 
-**2. Build and install** (stop the server first). Check out the HomefrontSDK tag matching `HomefrontSDKVersion`
+**2. Build and install** (stop the server first). Check out the HomefrontSDK tag of the version the build used
 (or use `-p:UseLocalSdk=true`), so the installed SDK is the one the mod was built against:
 
 ```
@@ -98,8 +100,8 @@ v0.6.0`) also builds with that version and makes a GitHub Release:
 | HomefrontBots | restores that package (with the workflow's `GITHUB_TOKEN`); releases `HomefrontBots.dll` and `.pdb`, the notes naming the SDK release it needs |
 | HomefrontModLoader | releases `msimg32.dll`. It doesn't use the SDK to build: it loads `HomefrontSDK.dll` from the server at run time |
 
-To release a new SDK with the bots: tag HomefrontSDK, wait for its workflow, raise `HomefrontSDKVersion` in
-`HomefrontBots.csproj`, push, then tag HomefrontBots.
+To release a new SDK with the bots: tag HomefrontSDK, wait for its workflow to publish the package, then tag
+HomefrontBots.
 
 In the server: `HomefrontSDK\Mods\HomefrontBots\HomefrontBots.dll`, log `HomefrontBots.log` and graphs
 `nav\<map>.nav` in the same folder. A rebuilt DLL can be swapped in while the server runs: copy it over the old
