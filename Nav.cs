@@ -16,7 +16,7 @@ sealed class Nav
     // Grid spacing, about a metre (1 unit ~ 2 cm): fine enough that a doorway gets a grid line through it.
     const float Spacing = 48f;
 
-    /// <summary>The grid the graph is built on (HomefrontImitation's heat files use the same cells).</summary>
+    /// <summary>The grid the graph is built on (HomefrontAI's heat files use the same cells).</summary>
     public const float GridSpacing = Spacing;
     const float MaxDrop = 250f;    // highest ledge a bot drops off (a one-way link)
     const float Margin = 4000f;    // with no combat volume: explore this far beyond spawn points/objectives
@@ -554,7 +554,7 @@ sealed class Nav
         return best;
     }
 
-    /// <summary>Extra path cost per node, as a fraction of the distance walked into it (HomefrontImitation's routes:
+    /// <summary>Extra path cost per node, as a fraction of the distance walked into it (HomefrontAI's routes:
     /// higher on floor humans don't use). Null: plain distances. Never negative, so A* stays exact.</summary>
     public float[]? Bias;
 

@@ -103,7 +103,7 @@ game. Tools can also ask the bridge for `bots.list` (each bot's position, state,
 
 ## Learning from real players
 
-With [HomefrontImitation](https://github.com/TylerJaacks/HomefrontImitation) recording real players and its trainer
+With [HomefrontAI](https://github.com/TylerJaacks/HomefrontAI) recording real players and its trainer
 writing `Mods\HomefrontBots\imitation\policy.json` and `<map>.heat`, bots:
 
 - **fight** like the humans did in the same spot: each 0.1 s the policy picks a move relative to the enemy (or
@@ -114,7 +114,7 @@ writing `Mods\HomefrontBots\imitation\policy.json` and `<map>.heat`, bots:
 
 Each part falls back to the behaviour above without its file. `!bots imitation` shows what's in use; settings are in
 `imitation\imitation.json`. The shared code in `Imitation\Features.cs`, `Policy.cs` and `Senses.cs` is a copy of
-HomefrontImitation's `Shared\` and must stay identical (its `tests/e2e.py` checks). How it works:
+HomefrontAI's `Shared\` and must stay identical (its `tests/e2e.py` checks). How it works:
 [RESEARCH.md](RESEARCH.md#learned-behaviour).
 
 ## Known limitations

@@ -4,12 +4,12 @@ using System.IO;
 using System.Numerics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using HomefrontImitation;
+using HomefrontAI;
 using HomefrontSDK;
 
 namespace HomefrontBots;
 
-/// <summary>What HomefrontBots takes from the model trained on real players (HomefrontImitation):
+/// <summary>What HomefrontBots takes from the model trained on real players (HomefrontAI):
 /// <list type="bullet">
 /// <item><b>combat</b>: in a fight, the policy picks which way to move relative to the enemy (or to hold still),
 /// from what humans did in the same situation; the move is made only along the nav graph.</item>
@@ -128,7 +128,7 @@ internal sealed class Imitation
         string path = Path.Combine(dir, "policy.json");
         if (!File.Exists(path))
         {
-            policyNote = "no policy.json (train one with HomefrontImitation)";
+            policyNote = "no policy.json (train one with HomefrontAI)";
             return;
         }
         try

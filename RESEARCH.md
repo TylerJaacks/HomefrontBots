@@ -16,7 +16,7 @@ graphs built by the C++ version load as they are.
 | `Nav.cs` | Navigation graph: generation, cache, nearest node, A* |
 | `build_navs.py` | Drives the server through every map to build the graphs |
 | `Imitation/Imitation.cs` | Behaviour learned from real players: loads the policy and heat, fight moves, stance, spots |
-| `Imitation/Features.cs`, `Policy.cs`, `Senses.cs` | Copies of HomefrontImitation's `Shared/`: the observation, the MLP, reading the game |
+| `Imitation/Features.cs`, `Policy.cs`, `Senses.cs` | Copies of HomefrontAI's `Shared/`: the observation, the MLP, reading the game |
 
 On `!sdk reload HomefrontBots` the bots stay in the game and the new copy takes them over: removing them on unload
 with `GCGameBase.KillBots` once crashed the server. `!bots kill` uses `GCGameBase.KillBots`.
@@ -158,7 +158,7 @@ Known gaps: no cover (bots strafe in the open), and ladder climbing is still unt
 
 ## Learned behaviour
 
-From HomefrontImitation's recordings of real players (`Mods\HomefrontBots\imitation\`):
+From HomefrontAI's recordings of real players (`Mods\HomefrontBots\imitation\`):
 
 - **Policy** (`policy.json`): an MLP from the observation in `Features.cs` (egocentric, in a frame toward the enemy
   in sight: distances, velocities, facing, health, counts, eight free-space box sweeps at knee height, last move,

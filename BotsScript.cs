@@ -209,7 +209,7 @@ public sealed class BotsScript : Script
 
     const string ImitationUsage = "imitation [on | off | reload | combat|stance|routes|spots on|off | temp <0.1-2>]";
 
-    // "!bots imitation ...": the behaviour learned from real players (HomefrontImitation).
+    // "!bots imitation ...": the behaviour learned from real players (HomefrontAI).
     void ImitationCommand(CommandContext ctx)
     {
         var cfg = Imitation.Cfg;
